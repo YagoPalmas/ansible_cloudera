@@ -1,0 +1,12 @@
+- name: Comprobaciones iniciales
+  hosts: main
+  become: yes
+  tasks:
+    - name: Selinux disabled
+      yum:
+        name: httpd
+        state: absent
+    - name: SElinux disabled
+      selinux: 
+        state: disabled
+

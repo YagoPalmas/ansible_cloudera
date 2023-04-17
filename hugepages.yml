@@ -1,0 +1,10 @@
+  - name: hugepages {{ item }}
+    shell:
+      cmd: "cat /sys/kernel/mm/transparent_hugepage/{{ item }}" 
+    register: result
+    changed_when: false
+
+  - name: Ponemos hugepages a never en /sys/kernel/mm/transparent_hugepage{{ item }}
+    shell:
+     echo 'never' > /sys/kernel/mm/transparent_hugepage/{{ item }}
+    changed_when: "'[never]' not in result.stdout"
