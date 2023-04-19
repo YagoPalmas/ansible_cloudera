@@ -109,17 +109,26 @@
       name: ntpstat
       state: present
 - name: Habilitamos MySQL 8 y JDBC en cmhost
-  hosts: main, master
+  hosts: main
   become: true
   tasks:
+  - name: Importamos key gpg 
+    rpm_key:
+      state: present
+      key: https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
   - name: Habilitamos repo de mysql 8 para centos 7
     yum:
       name: https://repo.mysql.com//mysql80-community-release-el7-7.noarch.rpm
       state: present
-  - name: Instalamos MySQL 8.0
-    yum:
-      name: mysql-community-server
-      state: present
+  #- name: Instalamos MySQL 8.0
+  #  yum:
+  #    name: mysql-community-server
+  #    state: present
+  #- name: Mysql enable y start
+  #  systemd:
+  #    name: mysqld
+  #    state: started
+  #    enabled: true
   - name: Habilitamos conector JDBC 8.0
     yum:
       name: mysql-connector-java

@@ -1,0 +1,63 @@
+
+- name: Check que es un Centos o RedHat
+  hosts: master
+  remote_user: azureuser
+  vars:
+    OS_redhat:
+      - "CentOS"
+      - "Red Hat"
+      - "Rocky"
+    OS_redhat_version:
+      - "8.6"
+      - "8.7"
+
+  tasks:
+    - name: Nos aseguramos que es un SO soportado
+      assert:
+        that: 
+          - ansible_distribution in OS_redhat
+          - ansible_distribution_version in OS_redhat_version
+        fail_msg: "SO incorrecto {{ ansible_distribution }} {{ ansible_distribution_version }} "
+        success_msg: "SO correcto {{ ansible_distribution }} {{ ansible_distribution_version }} "
+
+- name: Creamos usuarios de ansible adm_pue con privilegios para sudo
+  hosts: master
+  vars:
+    passadm: "$6$JGHcr5RwnRhLEFbO$HJOOcIKwhmN7z5yOeePXvIzn7/2CpKnLvLkT/mxlYiuoYtl34joie1wb4HTeuZqx5GjoosvlZLVb7tl9w5w440"
+  remote_user: azureuser
+  become: yes
+  tasks:
+    - name: Creamos user
+      user:
+        name: adm_pue
+        shell: /bin/bash
+        groups: wheel
+        comment: Usuario para despliege con Ansible
+        password: "{{ passadm }}"
+    - name: Copiamos la Key de .ssh/ids_rsa.pubpara tener acceso
+      authorized_key:
+        user: adm_pue
+        state: present
+        key: "{{ lookup('file', '/home/cmhost/.ssh/id_rsa.pub') }}"
+      
+- name: Comprobamos que tenemos acceso con adm_pue con sudo
+  hosts: master
+  remote_user: adm_pue
+  #become: yes
+  tasks:
+    - name: hacemos ping
+      ping:
+    - name: intentamos hacer sudo
+      become: true
+      shell:
+        cmd: id -u
+      register: usersudo
+      changed_when: false
+    - name: 
+      assert:
+        that:
+          usersudo.stdout == "0"
+        fail_msg: "No se ha hecho root con sudo id: {{  usersudo.stdout }} "
+        success_msg: "Conseguido root con sudo id: {{  usersudo.stdout }} "
+      
+
