@@ -1,0 +1,6 @@
+[cloudera-manager]
+name=Cloudera Manager 7.9.5
+baseurl=http://172.16.6.6/cloudera-repos/cm7
+gpgkey=http://172.16.6.6//cloudera-repos/cm7/RPM-GPG-KEY-cloudera
+enabled=1
+autorefresh=0

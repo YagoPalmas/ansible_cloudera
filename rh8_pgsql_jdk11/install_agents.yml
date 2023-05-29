@@ -1,0 +1,22 @@
+- name: Instala todos los agentes
+  hosts: all
+  become: true
+  tasks:
+    - name: instalamos agentes
+      yum:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - cloudera-manager-daemons
+        - cloudera-manager-agent
+    - name: Cambiamos el server_host
+      lineinfile:
+        path: /etc/cloudera-scm-agent/config.ini
+        regex: '^server_host=.*'
+        line: 'server_host=cmhost.yagopb.com'
+        state: present
+    - name: Iniciamos agentes
+      systemd:
+        name: cloudera-scm-agent.service
+        state: started
+        enabled: true

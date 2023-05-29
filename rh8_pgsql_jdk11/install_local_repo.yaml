@@ -1,0 +1,32 @@
+- name: Instalamos repo local
+  hosts: master-cdh
+  become: true
+  tasks:
+    - name: Instalamos httpd
+      yum:
+        name: httpd
+        state: present
+    - name: Creamos el path
+      file:
+        path: /var/www/html/cloudera-repos/cm7
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+    - name: Iniciamos httpd
+      systemd:
+        name: httpd
+        state: started
+        enabled: true
+
+- name: Creamos el repo en todos los hosts
+  hosts: all
+  become: true
+  tasks:
+    - name: Copiamos con copy a todos
+      copy:
+        src: /home/pue/ansible_cloudera/rh8_pgsql_jdk11/files/cloudera-manager.repo
+        dest: /etc/yum.repos.d/cloudera-manager.repo
+        owner: root
+        group: root
+

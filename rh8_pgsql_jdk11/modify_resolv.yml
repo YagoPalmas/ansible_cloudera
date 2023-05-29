@@ -1,0 +1,25 @@
+- name: Modificamos hostname y resolv.conf
+  hosts: all
+  become: true
+  tasks:
+    - name: Impedimos que Network Manager modifique resolv.conf
+      copy:
+        src: /home/pue/ansible_cloudera/rh8_pgsql_jdk11/files/90-dns-none.conf
+        dest: /etc/NetworkManager/conf.d/90-dns-none.conf
+        owner: root
+        group: root 
+    - name: Modificamos resolv.conf para que tenga nuestro servidor dns
+      lineinfile:
+        path: /etc/resolv.conf
+        regexp: 'nameserver\s172.16.6.6'
+        line: 'nameserver 172.16.6.6'
+        insertbefore: "nameserver 172.16.6.254"
+        state: present
+    - name: Modificamos resolv.conf para que tenga el search del dominio
+      lineinfile:
+        path: /etc/resolv.conf
+        regexp: '^search '
+        line: 'search yagopb.com'
+        state: present
+
+

@@ -1,0 +1,194 @@
+
+- name: Check que es un Centos o RedHat
+  hosts: all
+  vars:
+    OS_redhat:
+      - "CentOS"
+      - "Red Hat"
+    OS_redhat_version:
+      - "8.6"
+      - "8.7"
+      - "8"
+
+  tasks:
+    - name: Nos aseguramos que es un SO soportado
+      assert:
+        that: 
+          - ansible_distribution in OS_redhat
+          - ansible_distribution_version in OS_redhat_version
+        fail_msg: "SO incorrecto {{ ansible_distribution }} {{ ansible_distribution_version }} "
+        success_msg: "SO correcto {{ ansible_distribution }} {{ ansible_distribution_version }} "
+
+- name: Comprobamos que todos los host tienen selinux disabled
+  hosts: all
+  become: yes
+  tasks:
+  - name: Check SELinux disabled
+    selinux:
+      state: disabled
+- name: Comprobamos parametros de sysctl
+  hosts: all
+  become: true
+  become_method: sudo
+  tasks:
+  - name: Check con sysctl swappiness = 1
+    sysctl:
+      name: vm.swappiness
+      value: '1'
+      state: present
+  - name: Check vm.overcommit_memory = 1
+    sysctl:
+      name: vm.overcommit_memory
+      value: '1'
+      state: present
+  - name: Comprobamos estado hugepages defrag y enabled
+    include_tasks: hugepages.yml
+    loop:
+      - defrag
+      - enabled
+  - name: Creamos rc.d para el inicio
+    file:
+      path: /etc/rc.d/rc.local
+      owner: root
+      group: root
+      mode: '755'
+  - name: linea de enabled
+    lineinfile:
+      path: /etc/rc.d/rc.local
+      regexp: '/sys/kernel/mm/transparent_hugepage/enabled'
+      line: 'echo never > /sys/kernel/mm/transparent_hugepage/enabled'
+      state: present
+  - name: linea de defrag
+    lineinfile:
+      path: /etc/rc.d/rc.local
+      regexp: '/sys/kernel/mm/transparent_hugepage/defrag'
+      line: 'echo never > /sys/kernel/mm/transparent_hugepage/defrag'
+      state: present
+
+
+
+- name: Desactivamos IPv6 en nodos que no sean ECS
+  hosts: master-cdh,workers-cdh
+  become: true
+  tasks:
+  - name: Comprobamos interface por defecto
+    debug:
+      msg: "La interface por defecto es  {{ ansible_default_ipv4['interface'] }}"
+  - name: Deshabilitamos IPv6
+    sysctl:
+      name: "{{ item }}"
+      value: '1'
+      state: present
+    with_items:
+     - "net.ipv6.conf.all.disable_ipv6"
+     - "net.ipv6.conf.default.disable_ipv6"
+     - "net.ipv6.conf.lo.disable_ipv6"
+     - "net.ipv6.conf.{{ ansible_default_ipv4['interface'] }}.disable_ipv6"
+
+- name: check services and packages
+  hosts: all
+  become: true
+  tasks:
+  - name: Quitamos tuned para que no lo active
+    systemd:
+      name: tuned.service
+      state: stopped
+      enabled: false
+  - name: check /proc/sys/kernel/random/entropy_avail
+    shell:
+      cmd: "cat /proc/sys/kernel/random/entropy_avail"
+    register: entropyout
+    changed_when: false
+  - name: instalamos rng si es menos de 1000
+    yum:
+      name: rng-tools
+      state: present
+    notify:
+      check_rng_tools
+    when: entropyout.stdout|int < 1000 
+  - name: Actualizamos todos los paquetes
+    yum:
+      name: '*'
+      state: latest
+  - name: Instalamos NSCD
+    yum:
+      name: nscd.x86_64
+      state: present
+  - name: Instalamos NTPD chrony.x86_64
+    yum:
+      name: chrony.x86_64
+      state: present
+  - name: instalamos  python2
+    yum: 
+      name: python2
+      state: present
+  - name: creamos link para tener python sin numero
+    file:
+      src: /bin/python2
+      dest: /bin/python
+      state: link
+      owner: root
+      group: root
+
+  - name: Desactivamos Firewalld
+    systemd:
+      name: firewalld
+      state: stopped
+      enabled: false
+
+- name: Comprobamos que todos los servicios necesarios estan corriendo
+  hosts: all
+  become: true
+  tasks:
+  - name: Comprobamos Chrony corriendo
+    systemd:
+      name: chronyd.service
+      state: started
+      enabled: true
+  - name: Comprobamos que NSCD esta corriendo
+    systemd:
+      name: nscd.service
+      state: started
+      enabled: true
+- name: Permitimos sudo sin password
+  hosts: all
+  become: true
+  tasks:
+  - name: Edito /etc/sudoers
+    lineinfile:
+      path: /etc/sudoers
+      state: present
+      regexp: '^%wheel\s+ALL\=\(ALL\)'
+      line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+      validate: /usr/sbin/visudo -cf %s
+      backup: true
+
+- name: Configuramos ulimits
+  hosts: all
+  become: true
+  tasks:
+  - name: soft limit
+    lineinfile:
+      path: /etc/security/limits.conf
+      state: present
+      regexp: '.*soft nofile.*'
+      line: '* soft nofile 65536'
+  - name: hard limit
+    lineinfile:
+      path: /etc/security/limits.conf
+      state: present
+      regexp: '.*hard nofile.*'
+      line: '* hard nofile 65536'
+
+
+## mount noatime que no tenga sync
+## python 2.7
+## ulimits nproc https://docs.cloudera.com/cdp-private-cloud-base/7.1.7/installation/topics/cdpdc-os-requirements.html
+
+
+  handlers:
+    - name: check_rng_tools
+      systemd:
+        name: rngd
+        state: started
+        enabled: true
